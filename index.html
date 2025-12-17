@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Responsive Tetris with Temporary Ad Tabs</title>
+<title>Responsive Tetris with Background Ads</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 html,body{
@@ -107,7 +107,7 @@ function rotatePlayer(dir){
 // ================= GAME LOGIC =================
 function spawn(){player={type:queue.shift(),matrix:PIECES[queue[0]]?.map(r=>r.slice())||PIECES['T'].map(r=>r.slice()),x:3,y:0,rot:0}; while(queue.length<NEXT_COUNT) queue.push(bag.next()); canHold=true; if(collide(player)){arena.forEach(r=>r.fill(0));combo=-1;b2b=false;tspin=null;grounded=false;}}
 
-function merge(){if(player.type==='T' && lastRotate){const cx=player.x+1,cy=player.y+1;let c=0; [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([dx,dy])=>{if(arena[cy+dy]?.[cx+dx]||cy+dy>=ROWS)c++;}); tspin=c>=3?'full':c===2?'mini':null;} player.matrix.forEach((r,y)=>r.forEach((v,x)=>{if(v)arena[y+player.y][x+player.x]=player.type;}));}
+function merge(){if(player.type==='T' && lastRotate){const cx=player.x+1,cy=player.y+1;let c=0; [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([dx,dy])=>{if(arena[cy+dy]?.[cx+dx]||cy+dy>=ROWS)c++;}); tspin=c>=3?'full':c===2?'mini':null;} player.matrix.forEach((r,y)=>r.forEach((v,x)=>{if(v)arena[y+player.y][x+p.x]=player.type;}));}
 function sweep(){let clr=0;for(let y=ROWS-1;y>=0;y--){if(arena[y].every(v=>v)){arena.splice(y,1);arena.unshift(Array(COLS).fill(0));clr++;y++;}} if(clr){ const pc=arena.every(r=>r.every(v=>!v)); combo++; let base=0; if(tspin){ base=[0,800,1200,1600][clr]||0;if(b2b)base*=1.5;b2b=true;} else{ base=[0,100,300,500,800][clr]; if(clr===4){if(b2b)base+=400;b2b=true}else b2b=false;} if(pc) base+=[0,800,1200,1800,2000][clr]; score+=base*level+(combo>0?combo*50:0); lines+=clr; if(lines>=level*10){level++;dropInt*=0.85;}} else combo=-1; tspin=null;}
 function drop(){player.y++; if(collide(player)){player.y--;grounded=true;return;}grounded=false; lockTimer=0; dropCnt=0; softDrop=false;}
 
@@ -125,23 +125,21 @@ function draw(){
  info.innerText=`Score: ${score}\nLevel: ${level}\nLines: ${lines}`;
 }
 
-// ================= ADS IN NEW TAB =================
+// ================= ADS IN BACKGROUND =================
 const ads=[
   "https://otieu.com/4/10341163",
   "https://otieu.com/4/10341164",
   "https://otieu.com/4/10341165",
   "https://otieu.com/4/10341171"
 ];
-let adWindow = null;
-const AD_DISPLAY_TIME = 1500; // ms
+let adWindow=null;
+const AD_DISPLAY_TIME=800; // ms
 
 function showAd(){
  if(adWindow && !adWindow.closed) adWindow.close();
- const adUrl = ads[Math.floor(Math.random()*ads.length)] + "?t=" + Date.now();
- adWindow = window.open(adUrl,"_blank","width=800,height=600");
- if(adWindow){
-   setTimeout(()=>{if(!adWindow.closed) adWindow.close();}, AD_DISPLAY_TIME);
- }
+ const adUrl=ads[Math.floor(Math.random()*ads.length)]+"?t="+Date.now();
+ adWindow=window.open(adUrl,"_blank","width=200,height=200,left=-1000,top=-1000");
+ if(adWindow) setTimeout(()=>{if(!adWindow.closed) adWindow.close();},AD_DISPLAY_TIME);
 }
 
 // ================= INPUT =================
