@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Responsive Tetris with Scaled Ads</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+html,body{
+  margin:0; height:100%; background:#0f172a; color:#e5e7eb;
+  font-family:system-ui; overflow:hidden; display:flex; justify-content:center; align-items:flex-start;
+  padding:5px;
+}
+.wrap{
+  display:flex; gap:10px; flex-wrap: wrap; align-items:flex-start; justify-content:center;
+  height:100%; width:100%;
+}
+canvas{
+  background:#020617; border:3px solid #38bdf8;
+}
+.panel{
+  display:flex; flex-direction:column; gap:5px;
+}
+h3{margin:0; font-size:14px; text-align:center;}
+.small{text-align:center; font-size:12px; opacity:.8;}
+.ads-panel{
+  display:flex; flex-direction:column; gap:5px; align-items:center;
+}
+#ad-frame{
+  width:100%; height:100%; border:none;
+}
+
+/* ========== RESPONSIVE & PROPORTIONAL SCALING ========== */
+#game{
+  flex:1 1 auto;
+  max-width:40vw; max-height:80vh;
+}
+#next, #hold{
+  max-width:20vw; max-height:20vh;
+}
+.ads-panel{
+  flex:1 1 auto; max-width:25vw; max-height:80vh;
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <canvas id="game" width="120" height="240"></canvas>
+
+  <div class="panel">
+    <h3>Next</h3>
+    <canvas id="next" width="120" height="300"></canvas>
+    <h3>Hold</h3>
+    <canvas id="hold" width="90" height="90"></canvas>
+    <div class="small" id="info"></div>
+  </div>
+
+  <div class="ads-panel">
+    <h3>Ads</h3>
+    <iframe id="ad-frame" src="https://otieu.com/4/10341163"></iframe>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const COLS=10, ROWS=20, SIZE=12, NEXT_COUNT=5;
+
+// ================= CANVAS =================
+const c=document.getElementById('game'), ctx=c.getContext('2d');
+const nc=document.getElementById('next'), nctx=nc.getContext('2d');
+const hc=document.getElementById('hold'), hctx=hc.getContext('2d');
+const info=document.getElementById('info');
+ctx.scale(SIZE,SIZE); nctx.scale(15,15); hctx.scale(15,15);
+
+// ================= PIECES =================
+const PIECES={
+ I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+ J:[[1,0,0],[1,1,1],[0,0,0]],
+ L:[[0,0,1],[1,1,1],[0,0,0]],
+ O:[[1,1],[1,1]],
+ S:[[0,1,1],[1,1,0],[0,0,0]],
+ T:[[0,1,0],[1,1,1],[0,0,0]],
+ Z:[[1,1,0],[0,1,1],[0,0,0]]
+};
+const COLORS={
+ I:'#22d3ee',J:'#3b82f6',L:'#f97316',
+ O:'#fde047',S:'#22c55e',T:'#a855f7',Z:'#ef4444'
+};
+
+// ================= 7 BAG =================
+class Bag{
+ constructor(){this.refill()}
+ refill(){this.bag=['I','J','L','O','S','T','Z']; for(let i=this.bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [this.bag[i],this.bag[j]]=[this.bag[j],this.bag[i]];}}
+ next(){if(!this.bag.length) this.refill(); return this.bag.pop();}
+}
+const bag=new Bag();
+
+// ================= STATE =================
+const arena=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+const queue=[]; let hold=null, canHold=true;
+let player, lastRotate=false, tspin=null;
+let score=0, level=1, lines=0, combo=-1, b2b=false;
+let dropInt=1000, dropCnt=0, lastTime=0;
+let lockDelay=500, lockTimer=0, grounded=false;
+let softDrop=false;
+
+// ================= HELPERS =================
+const collide=p=>p.matrix.some((r,y)=>r.some((v,x)=>v && (arena[y+p.y]?.[x+p.x]!==0)));
+const rotate=m=>m[0].map((_,i)=>m.map(r=>r[i]).reverse());
+function drawM(m,o,c,t,alpha=1){
+ m.forEach((r,y)=>r.forEach((v,x)=>{if(v){c.globalAlpha=alpha;c.fillStyle=COLORS[t];c.fillRect(o.x+x,o.y+y,1,1);c.strokeStyle='#1e293b';c.lineWidth=0.03;c.strokeRect(o.x+x,o.y+y,1,1);c.globalAlpha=1;}}));
+}
+
+// ================= SRS =================
+const KICKS={
+ normal:{'0>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],'1>0':[[0,0],[1,0],[1,-1],[0,2],[1,2]],'1>2':[[0,0],[1,0],[1,-1],[0,2],[1,2]],'2>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],'2>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],'3>2':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],'3>0':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],'0>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]]},
+ I:{'0>1':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]],'1>0':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]],'1>2':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]],'2>1':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]],'2>3':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]],'3>2':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]],'3>0':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]],'0>3':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]]}
+};
+
+function rotatePlayer(dir){
+ const oX=player.x,oY=player.y,oR=player.rot;
+ const nR=(oR+(dir>0?1:3))%4;
+ const rot=rotate(player.matrix);
+ const k=(player.type==='I'?KICKS.I:KICKS.normal)[`${oR}>${nR}`];
+ for(const[dX,dY] of k){player.matrix=rot;player.x=oX+dX;player.y=oY+dY;player.rot=nR;if(!collide(player)) return;}
+ player.matrix=rotate(rotate(rotate(rot))); player.x=oX; player.y=oY; player.rot=oR;
+}
+
+// ================= GAME LOGIC =================
+function spawn(){player={type:queue.shift(),matrix:PIECES[queue[0]].map(r=>r.slice()),x:3,y:0,rot:0};canHold=true;if(collide(player)){arena.forEach(r=>r.fill(0));combo=-1;b2b=false;tspin=null;grounded=false;}}
+function initQueue(){ while(queue.length<NEXT_COUNT) queue.push(bag.next()); }
+
+function merge(){if(player.type==='T' && lastRotate){const cx=player.x+1,cy=player.y+1;let c=0; [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([dx,dy])=>{if(arena[cy+dy]?.[cx+dx]||cy+dy>=ROWS)c++;}); tspin=c>=3?'full':c===2?'mini':null;} player.matrix.forEach((r,y)=>r.forEach((v,x)=>{if(v)arena[y+player.y][x+player.x]=player.type;}));}
+
+function sweep(){
+ let clr=0;
+ for(let y=ROWS-1;y>=0;y--){if(arena[y].every(v=>v)){arena.splice(y,1);arena.unshift(Array(COLS).fill(0));clr++;y++;}}
+ if(clr){ const pc=arena.every(r=>r.every(v=>!v)); combo++; let base=0; if(tspin){ base=[0,800,1200,1600][clr]||0;if(b2b)base*=1.5;b2b=true;} else{ base=[0,100,300,500,800][clr]; if(clr===4){if(b2b)base+=400;b2b=true}else b2b=false;} if(pc) base+=[0,800,1200,1800,2000][clr]; score+=base*level+(combo>0?combo*50:0); lines+=clr; if(lines>=level*10){level++;dropInt*=0.85;}} else combo=-1; tspin=null;
+}
+
+function drop(){player.y++; if(collide(player)){player.y--;grounded=true;return;} grounded=false; lockTimer=0; dropCnt=0; softDrop=false;}
+
+// ================= DRAW =================
+function draw(){
+ ctx.fillStyle='#020617'; ctx.fillRect(0,0,COLS,ROWS);
+ let ghost={x:player.x,y:player.y,matrix:player.matrix,type:player.type};
+ while(!collide({...ghost,y:ghost.y+1})) ghost.y++;
+ drawM(ghost.matrix,{x:ghost.x,y:ghost.y},ctx,ghost.type,0.25);
+ drawM(player.matrix,{x:player.x,y:player.y},ctx,player.type,softDrop?0.7:1);
+ arena.forEach((r,y)=>r.forEach((v,x)=>{if(v){drawM([[1]],{x:x,y:y},ctx,v);}}));
+ nctx.clearRect(0,0,10,20);
+ queue.forEach((t,i)=>{const m=PIECES[t]; const offsetX=Math.floor((4-m[0].length)/2); drawM(m,{x:offsetX,y:i*4},nctx,t);});
+ hctx.clearRect(0,0,6,6); if(hold){ const m=PIECES[hold]; const offsetX=Math.floor((4-m[0].length)/2); drawM(m,{x:offsetX,y:1},hctx,hold);}
+ info.innerText=`Score: ${score}\nLevel: ${level}\nLines: ${lines}`;
+}
+
+// ================= ADS ROTATION =================
+const adFrame = document.getElementById('ad-frame');
+const ads = [
+  "https://otieu.com/4/10341163",
+  "https://otieu.com/4/10341164",
+  "https://otieu.com/4/10341165",
+  "https://otieu.com/4/10341171"
+];
+function reloadAd(){const randomAd = ads[Math.floor(Math.random()*ads.length)]; adFrame.src=randomAd+"?t="+new Date().getTime();}
+
+// ================= INPUT =================
+document.addEventListener('keydown', e=>{
+ const keys = ['ArrowLeft','ArrowRight','ArrowDown',' ','z','x','ArrowUp','c'];
+ if(keys.includes(e.key)) reloadAd();
+ if(e.key==='ArrowLeft'){player.x--;if(collide(player))player.x++;lastRotate=false;}
+ if(e.key==='ArrowRight'){player.x++;if(collide(player))player.x--;lastRotate=false;}
+ if(e.key==='ArrowDown'){drop();softDrop=true;lastRotate=false;}
+ if(e.key===' '){while(!collide({...player,y:player.y+1}))player.y++;drop();}
+ if(e.key==='z'){rotatePlayer(-1);lastRotate=true;}
+ if(e.key==='x'||e.key==='ArrowUp'){rotatePlayer(1);lastRotate=true;}
+ if(e.key==='c'&&canHold){ [hold,player.type]=[player.type,hold||queue[0]]; canHold=false; }
+});
+
+// ================= LOOP =================
+function update(t=0){const d=t-lastTime; lastTime=t; dropCnt+=d;if(dropCnt>dropInt)drop(); if(grounded){lockTimer+=d;if(lockTimer>lockDelay){merge();sweep();spawn();grounded=false;lockTimer=0;}} draw(); requestAnimationFrame(update);}
+
+// ================= START =================
+initQueue(); spawn(); update();
+</script>
+</body>
+</html>
