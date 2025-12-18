@@ -2,21 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Tetris Stage 3 – Monetized (Fixed)</title>
+<title>Tetris Stage 3 – Fixed Gravity</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
-html,body{margin:0;height:100%;background:#0f172a;color:#e5e7eb;font-family:system-ui;overflow:hidden}
-.wrap{display:flex;gap:12px;justify-content:center;align-items:flex-start;padding:10px;height:100%}
-canvas{background:#020617;border:3px solid #38bdf8}
+html,body{
+  margin:0;height:100%;background:#0f172a;color:#e5e7eb;
+  font-family:system-ui;overflow:hidden;
+}
+.wrap{
+  display:flex;gap:12px;justify-content:center;align-items:flex-start;
+  padding:10px;height:100%;
+}
+canvas{background:#020617;border:3px solid #38bdf8;}
 .panel{display:flex;flex-direction:column;gap:6px}
 h3{margin:0;font-size:14px;text-align:center}
 #game{width:240px;height:480px}
-#next,#hold{background:#020617}
-#info{font-size:12px;text-align:center;white-space:pre-line}
-#gameOver{position:fixed;inset:0;background:rgba(2,6,23,.95);display:none;align-items:center;justify-content:center;z-index:999}
-#gameOver .box{background:#020617;border:3px solid #38bdf8;padding:20px;text-align:center;width:280px}
-#gameOver button{width:100%;margin-top:10px;padding:10px;background:#38bdf8;border:none;font-weight:bold;cursor:pointer}
-#gameOver button:disabled{opacity:.5;cursor:not-allowed}
+#next{width:120px;height:300px}
+#hold{width:120px;height:120px}
+#info{font-size:12px;text-align:center}
+
+/* GAME OVER */
+#gameOver{
+  position:fixed;inset:0;
+  background:rgba(2,6,23,.95);
+  display:none;align-items:center;justify-content:center;z-index:999;
+}
+#gameOver .box{
+  background:#020617;border:3px solid #38bdf8;
+  padding:20px;text-align:center;width:280px
+}
+#gameOver button{
+  width:100%;margin-top:10px;padding:10px;
+  background:#38bdf8;border:none;font-weight:bold;cursor:pointer
+}
 </style>
 </head>
 <body>
@@ -25,7 +43,7 @@ h3{margin:0;font-size:14px;text-align:center}
   <canvas id="game" width="120" height="240"></canvas>
   <div class="panel">
     <h3>Next</h3>
-    <canvas id="next" width="120" height="240"></canvas>
+    <canvas id="next" width="120" height="300"></canvas>
     <h3>Hold</h3>
     <canvas id="hold" width="120" height="120"></canvas>
     <div id="info"></div>
@@ -35,68 +53,188 @@ h3{margin:0;font-size:14px;text-align:center}
 <div id="gameOver">
   <div class="box">
     <h2>Game Over</h2>
-    <p id="rewardInfo" style="font-size:13px;opacity:.8"></p>
-    <button id="watchAd" disabled>Watch Ad & Continue</button>
+    <button id="watchAd">Watch Ad & Continue</button>
     <button id="restart">Restart Game</button>
   </div>
 </div>
 
 <script>
-// ===== ADS =====
-const ADS=["https://otieu.com/4/10341163","https://otieu.com/4/10341164","https://otieu.com/4/10341165","https://otieu.com/4/10341171"];
-function openAd(){window.open(ADS[Math.floor(Math.random()*ADS.length)],'_blank','noopener');}
+// ================= ADS =================
+const ADS=[
+  "https://otieu.com/4/10341163",
+  "https://otieu.com/4/10341164",
+  "https://otieu.com/4/10341165",
+  "https://otieu.com/4/10341171"
+];
+function openAd(){
+  const url=ADS[Math.floor(Math.random()*ADS.length)];
+  window.open(url,'_blank','noopener');
+}
 
-// ===== CONFIG =====
+// ================= CONFIG =================
 const COLS=10,ROWS=20,SIZE=12;
-const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');ctx.scale(SIZE,SIZE);
-const nextC=document.getElementById('next'),nctx=nextC.getContext('2d');nctx.scale(15,15);
-const holdC=document.getElementById('hold'),hctx=holdC.getContext('2d');hctx.scale(15,15);
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+ctx.scale(SIZE,SIZE);
+
+const nextC=document.getElementById('next');
+const nctx=nextC.getContext('2d');nctx.scale(15,15);
+
+const holdC=document.getElementById('hold');
+const hctx=holdC.getContext('2d');hctx.scale(15,15);
+
 const info=document.getElementById('info');
 
-// ===== PIECES =====
-const PIECES={I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],J:[[1,0,0],[1,1,1],[0,0,0]],L:[[0,0,1],[1,1,1],[0,0,0]],O:[[1,1],[1,1]],S:[[0,1,1],[1,1,0],[0,0,0]],T:[[0,1,0],[1,1,1],[0,0,0]],Z:[[1,1,0],[0,1,1],[0,0,0]]};
+// ================= PIECES =================
+const PIECES={
+ I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+ J:[[1,0,0],[1,1,1],[0,0,0]],
+ L:[[0,0,1],[1,1,1],[0,0,0]],
+ O:[[1,1],[1,1]],
+ S:[[0,1,1],[1,1,0],[0,0,0]],
+ T:[[0,1,0],[1,1,1],[0,0,0]],
+ Z:[[1,1,0],[0,1,1],[0,0,0]]
+};
 const COLORS={I:'#22d3ee',J:'#3b82f6',L:'#f97316',O:'#fde047',S:'#22c55e',T:'#a855f7',Z:'#ef4444'};
 
-// ===== BAG =====
-class Bag{constructor(){this.refill()}refill(){this.b=['I','J','L','O','S','T','Z'];for(let i=this.b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[this.b[i],this.b[j]]=[this.b[j],this.b[i]]}}next(){if(!this.b.length)this.refill();return this.b.pop()}}
+// ================= BAG =================
+class Bag{
+  constructor(){this.refill()}
+  refill(){
+    this.b=['I','J','L','O','S','T','Z'];
+    for(let i=this.b.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [this.b[i],this.b[j]]=[this.b[j],this.b[i]];
+    }
+  }
+  next(){ if(!this.b.length) this.refill(); return this.b.pop(); }
+}
 const bag=new Bag();
 
-// ===== STATE =====
+// ================= STATE =================
 const arena=Array.from({length:ROWS},()=>Array(COLS).fill(0));
 let queue=[bag.next(),bag.next(),bag.next()];
-let player=null,hold=null,canHold=true;
+let player=null;
 let score=0,lines=0;
-let dropInt=1000,dropCnt=0,last=0;
+let dropInt=1000,dropCnt=0;
+let lastTime=0;
+let animationId=null;
+let isGameOver=false;
 
-// ===== HELPERS =====
+// ================= HELPERS =================
 const collide=p=>p.m.some((r,y)=>r.some((v,x)=>v&&(arena[y+p.y]?.[x+p.x]!==0)));
 const rotate=m=>m[0].map((_,i)=>m.map(r=>r[i]).reverse());
-function drawM(m,o,c,t,a=1){c.globalAlpha=a;c.fillStyle=COLORS[t];m.forEach((r,y)=>r.forEach((v,x)=>{if(v)c.fillRect(o.x+x,o.y+y,1,1)}));c.globalAlpha=1}
 
-// ===== GAME =====
-function spawn(){const t=queue.shift();queue.push(bag.next());player={type:t,m:PIECES[t].map(r=>r.slice()),x:3,y:0};canHold=true;if(collide(player)) showGameOver();}
-function merge(){player.m.forEach((r,y)=>r.forEach((v,x)=>{if(v)arena[y+player.y][x+player.x]=player.type}))}
-function sweep(){for(let y=ROWS-1;y>=0;y--){if(arena[y].every(v=>v)){arena.splice(y,1);arena.unshift(Array(COLS).fill(0));lines++;score+=100;y++}}}
-function drop(){player.y++;if(collide(player)){player.y--;merge();sweep();spawn();dropCnt=0}}
+function drawM(m,o,c,t){
+  c.fillStyle=COLORS[t];
+  m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v) c.fillRect(o.x+x,o.y+y,1,1);
+  }));
+}
 
-function draw(){ctx.fillStyle='#020617';ctx.fillRect(0,0,COLS,ROWS);arena.forEach((r,y)=>r.forEach((v,x)=>{if(v)drawM([[1]],{x,y},ctx,v)}));if(player)drawM(player.m,{x:player.x,y:player.y},ctx,player.type);drawNext();drawHold();info.innerText=`Score: ${score}\nLines: ${lines}`}
+// ================= GAME =================
+function spawn(){
+  const t=queue.shift();queue.push(bag.next());
+  player={type:t,m:PIECES[t].map(r=>r.slice()),x:3,y:0};
+  if(collide(player)) gameOver();
+}
 
-function drawNext(){nctx.clearRect(0,0,10,20);queue.forEach((t,i)=>drawM(PIECES[t],{x:1,y:i*4},nctx,t));}
-function drawHold(){hctx.clearRect(0,0,10,10);if(hold)drawM(PIECES[hold],{x:1,y:1},hctx,hold)}
+function merge(){
+  player.m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v) arena[y+player.y][x+player.x]=player.type;
+  }));
+}
 
-function update(t=0){const d=t-last;last=t;dropCnt+=d;if(dropCnt>dropInt)drop();draw();requestAnimationFrame(update)}
+function sweep(){
+  for(let y=ROWS-1;y>=0;y--){
+    if(arena[y].every(v=>v)){
+      arena.splice(y,1);
+      arena.unshift(Array(COLS).fill(0));
+      score+=100;
+      lines++;
+      y++;
+    }
+  }
+}
 
-// ===== GAME OVER =====
-function showGameOver(){const box=document.getElementById('gameOver');const btn=document.getElementById('watchAd');const info=document.getElementById('rewardInfo');box.style.display='flex';if(score>=500){btn.disabled=false;info.innerText='Reward unlocked! Watch ad to continue';}else{btn.disabled=true;info.innerText=`Score ${500-score} more points to unlock continue`;}}
+function drop(){
+  player.y++;
+  if(collide(player)){
+    player.y--;
+    merge();
+    sweep();
+    spawn();
+  }
+}
 
-document.getElementById('watchAd').onclick=()=>{openAd();document.getElementById('gameOver').style.display='none';arena.forEach(r=>r.fill(0));score=0;lines=0;queue=[bag.next(),bag.next(),bag.next()];spawn();}
+function draw(){
+  ctx.fillStyle='#020617';
+  ctx.fillRect(0,0,COLS,ROWS);
+
+  arena.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v) drawM([[1]],{x,y},ctx,v);
+  }));
+
+  drawM(player.m,{x:player.x,y:player.y},ctx,player.type);
+  info.innerText=`Score: ${score}\nLines: ${lines}`;
+}
+
+// ================= LOOP (SINGLE LOOP) =================
+function update(time=0){
+  if(isGameOver) return;
+
+  const delta=time-lastTime;
+  lastTime=time;
+  dropCnt+=delta;
+
+  if(dropCnt>=dropInt){
+    drop();
+    dropCnt=0;
+  }
+
+  draw();
+  animationId=requestAnimationFrame(update);
+}
+
+// ================= GAME OVER =================
+function gameOver(){
+  isGameOver=true;
+  cancelAnimationFrame(animationId);
+  document.getElementById('gameOver').style.display='flex';
+}
+
+document.getElementById('watchAd').onclick=()=>{
+  openAd();
+  document.getElementById('gameOver').style.display='none';
+  arena.forEach(r=>r.fill(0));
+  score=0;lines=0;
+  dropCnt=0;
+  isGameOver=false;
+  spawn();
+  lastTime=performance.now();
+  animationId=requestAnimationFrame(update);
+};
+
 document.getElementById('restart').onclick=()=>location.reload();
 
-// ===== INPUT =====
-document.addEventListener('keydown',e=>{if(!player)return;if(e.key==='ArrowLeft'){player.x--;if(collide(player))player.x++;}if(e.key==='ArrowRight'){player.x++;if(collide(player))player.x--;}if(e.key==='ArrowDown')drop();if(e.key==='z'||e.key==='ArrowUp'){const m=rotate(player.m),o=player.m;player.m=m;if(collide(player))player.m=o;}if(e.key==='c'&&canHold){[hold,player.type]=[player.type,hold||queue[0]];player.m=PIECES[player.type].map(r=>r.slice());canHold=false;}});
+// ================= INPUT =================
+document.addEventListener('keydown',e=>{
+  if(!player || isGameOver) return;
+  if(e.key==='ArrowLeft'){player.x--;if(collide(player))player.x++}
+  if(e.key==='ArrowRight'){player.x++;if(collide(player))player.x--}
+  if(e.key==='ArrowDown') drop();
+  if(e.key==='z'||e.key==='ArrowUp'){
+    const m=rotate(player.m);
+    const o=player.m;
+    player.m=m;
+    if(collide(player)) player.m=o;
+  }
+});
 
-// ===== START =====
-spawn();update();
+// ================= START =================
+spawn();
+lastTime=performance.now();
+animationId=requestAnimationFrame(update);
 </script>
 </body>
 </html>
