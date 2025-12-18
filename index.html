@@ -2,30 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Tetris Stage 3 – Rewarded Ads</title>
+<title>Tetris Stage 3 – Rewarded Ads & Touch Controls</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
 html,body{
-  margin:0;height:100%;
-  background:#0f172a;color:#e5e7eb;
-  font-family:system-ui;
-  overflow:hidden;
+  margin:0;height:100%;background:#0f172a;color:#e5e7eb;
+  font-family:system-ui;overflow:hidden;
 }
 .wrap{
   display:flex;gap:12px;
-  justify-content:center;
-  align-items:flex-start;
+  justify-content:center;align-items:flex-start;
   padding:10px;
 }
 canvas{
-  background:#020617;
-  border:3px solid #38bdf8;
+  background:#020617;border:3px solid #38bdf8;
 }
-.panel{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
+.panel{display:flex;flex-direction:column;gap:6px}
 h3{margin:0;font-size:14px;text-align:center}
 #info{font-size:12px;text-align:center}
 
@@ -33,26 +25,24 @@ h3{margin:0;font-size:14px;text-align:center}
 #gameOver{
   position:fixed;inset:0;
   background:rgba(2,6,23,.95);
-  display:none;
-  align-items:center;
-  justify-content:center;
-  z-index:999;
+  display:none;align-items:center;justify-content:center;z-index:999;
 }
 #gameOver .box{
-  background:#020617;
-  border:3px solid #38bdf8;
-  padding:20px;
-  width:280px;
-  text-align:center;
+  background:#020617;border:3px solid #38bdf8;
+  padding:20px;width:280px;text-align:center;
 }
 #gameOver button{
-  width:100%;
-  padding:10px;
-  margin-top:10px;
-  background:#38bdf8;
-  border:none;
-  font-weight:bold;
-  cursor:pointer;
+  width:100%;padding:10px;margin-top:10px;
+  background:#38bdf8;border:none;font-weight:bold;cursor:pointer;
+}
+
+/* MOBILE TOUCH CONTROLS */
+#touch-controls{
+  position:fixed;bottom:10px;width:100%;display:flex;justify-content:center;gap:10px;z-index:1000;
+}
+#touch-controls button{
+  padding:15px 20px;font-size:18px;border:none;border-radius:5px;
+  background:#38bdf8;color:#020617;font-weight:bold;user-select:none;
 }
 </style>
 </head>
@@ -77,6 +67,14 @@ h3{margin:0;font-size:14px;text-align:center}
   </div>
 </div>
 
+<div id="touch-controls">
+  <button id="left-btn">◀</button>
+  <button id="right-btn">▶</button>
+  <button id="rotate-btn">⟳</button>
+  <button id="down-btn">▼</button>
+  <button id="hold-btn">H</button>
+</div>
+
 <script>
 // ================= ADS =================
 const ADS=[
@@ -93,17 +91,10 @@ function openAd(){
 // ================= CONFIG =================
 const COLS=10, ROWS=20, SIZE=12;
 const canvas=document.getElementById('game');
-const ctx=canvas.getContext('2d');
-ctx.scale(SIZE,SIZE);
+const ctx=canvas.getContext('2d'); ctx.scale(SIZE,SIZE);
 
-const nextC=document.getElementById('next');
-const nctx=nextC.getContext('2d');
-nctx.scale(15,15);
-
-const holdC=document.getElementById('hold');
-const hctx=holdC.getContext('2d');
-hctx.scale(15,15);
-
+const nextC=document.getElementById('next'); const nctx=nextC.getContext('2d'); nctx.scale(15,15);
+const holdC=document.getElementById('hold'); const hctx=holdC.getContext('2d'); hctx.scale(15,15);
 const info=document.getElementById('info');
 
 // ================= PIECES =================
@@ -116,25 +107,13 @@ const PIECES={
  T:[[0,1,0],[1,1,1],[0,0,0]],
  Z:[[1,1,0],[0,1,1],[0,0,0]]
 };
-const COLORS={
- I:'#22d3ee',J:'#3b82f6',L:'#f97316',
- O:'#fde047',S:'#22c55e',T:'#a855f7',Z:'#ef4444'
-};
+const COLORS={I:'#22d3ee',J:'#3b82f6',L:'#f97316',O:'#fde047',S:'#22c55e',T:'#a855f7',Z:'#ef4444'};
 
 // ================= BAG =================
 class Bag{
   constructor(){this.refill()}
-  refill(){
-    this.b=['I','J','L','O','S','T','Z'];
-    for(let i=this.b.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [this.b[i],this.b[j]]=[this.b[j],this.b[i]];
-    }
-  }
-  next(){
-    if(!this.b.length) this.refill();
-    return this.b.pop();
-  }
+  refill(){this.b=['I','J','L','O','S','T','Z'];for(let i=this.b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[this.b[i],this.b[j]]=[this.b[j],this.b[i]]}}
+  next(){if(!this.b.length)this.refill();return this.b.pop()}
 }
 const bag=new Bag();
 
@@ -142,92 +121,75 @@ const bag=new Bag();
 const arena=Array.from({length:ROWS},()=>Array(COLS).fill(0));
 let queue=[bag.next(),bag.next(),bag.next()];
 let player=null, hold=null, canHold=true;
-
 let score=0, lines=0, level=1;
-let dropInt=1000, dropCnt=0;
-let lastTime=0;
-let isGameOver=false;
-let animationId=null;
+let dropInt=1000, dropCnt=0, lastTime=0;
+let isGameOver=false, animationId=null;
 
 // ================= HELPERS =================
-const collide=p=>p.m.some((r,y)=>
-  r.some((v,x)=>v && (arena[y+p.y]?.[x+p.x]!==0))
-);
+const collide=p=>p.m.some((r,y)=>r.some((v,x)=>v&&(arena[y+p.y]?.[x+p.x]!==0)));
 const rotate=m=>m[0].map((_,i)=>m.map(r=>r[i]).reverse());
 
 function drawM(m,o,c,t,a=1){
-  c.globalAlpha=a;
-  c.fillStyle=COLORS[t];
-  m.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) c.fillRect(o.x+x,o.y+y,1,1);
-  }));
-  c.globalAlpha=1;
+  c.globalAlpha=a;c.fillStyle=COLORS[t];
+  m.forEach((r,y)=>r.forEach((v,x)=>{if(v)c.fillRect(o.x+x,o.y+y,1,1)}));c.globalAlpha=1;
+}
+
+// ================= DRAW NEXT & HOLD =================
+function drawNext(){
+  nctx.clearRect(0,0,10,20);
+  queue.forEach((t,i)=>{
+    const m=PIECES[t];
+    const offsetX=Math.floor((4-m[0].length)/2);
+    drawM(m,{x:offsetX,y:i*4},nctx,t);
+  });
+}
+function drawHold(){
+  hctx.clearRect(0,0,6,6);
+  if(!hold) return;
+  const m=PIECES[hold];
+  const offsetX=Math.floor((4-m[0].length)/2);
+  drawM(m,{x:offsetX,y:1},hctx,hold);
 }
 
 // ================= GAME LOGIC =================
 function spawn(){
-  const t=queue.shift();
-  queue.push(bag.next());
+  const t=queue.shift(); queue.push(bag.next());
   player={type:t,m:PIECES[t].map(r=>r.slice()),x:3,y:0};
   canHold=true;
   if(collide(player)) gameOver();
 }
 
-function merge(){
-  player.m.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) arena[y+player.y][x+player.x]=player.type;
-  }));
-}
+function merge(){player.m.forEach((r,y)=>r.forEach((v,x)=>{if(v)arena[y+player.y][x+player.x]=player.type}))}
 
-function sweep(){
-  for(let y=ROWS-1;y>=0;y--){
-    if(arena[y].every(v=>v)){
-      arena.splice(y,1);
-      arena.unshift(Array(COLS).fill(0));
-      lines++;
-      score+=100;
-      y++;
-    }
-  }
-}
+function sweep(){for(let y=ROWS-1;y>=0;y--){if(arena[y].every(v=>v)){arena.splice(y,1);arena.unshift(Array(COLS).fill(0));lines++;score+=100;y++}}}
 
-function drop(){
-  player.y++;
-  if(collide(player)){
-    player.y--;
-    merge();
-    sweep();
-    spawn();
+function drop(){player.y++;if(collide(player)){player.y--;merge();sweep();spawn();dropCnt=0}}
+
+// ================= HOLD =================
+function doHold(){
+  if(!canHold) return;
+  if(hold===null){hold=player.type;spawn();}else{
+    [hold,player.type]=[player.type,hold];
+    player.m=PIECES[player.type].map(r=>r.slice());player.x=3;player.y=0;
   }
+  canHold=false;
 }
 
 // ================= DRAW =================
 function draw(){
-  ctx.fillStyle='#020617';
-  ctx.fillRect(0,0,COLS,ROWS);
-
-  arena.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) drawM([[1]],{x,y},ctx,v);
-  }));
-
+  ctx.fillStyle='#020617';ctx.fillRect(0,0,COLS,ROWS);
+  arena.forEach((r,y)=>r.forEach((v,x)=>{if(v)drawM([[1]],{x,y},ctx,v)}));
   drawM(player.m,{x:player.x,y:player.y},ctx,player.type);
-
+  drawNext();
+  drawHold();
   info.innerText=`Score: ${score}\nLines: ${lines}\nLevel: ${level}`;
 }
 
 // ================= LOOP =================
 function update(time=0){
   if(isGameOver) return;
-
-  const delta=time-lastTime;
-  lastTime=time;
-  dropCnt+=delta;
-
-  if(dropCnt>=dropInt){
-    drop();
-    dropCnt=0;
-  }
-
+  const delta=time-lastTime; lastTime=time; dropCnt+=delta;
+  if(dropCnt>=dropInt){drop(); dropCnt=0;}
   draw();
   animationId=requestAnimationFrame(update);
 }
@@ -242,39 +204,47 @@ function gameOver(){
 // ================= BUTTONS =================
 document.getElementById('watchAd').onclick=()=>{
   openAd();
-
   document.getElementById('gameOver').style.display='none';
-
-  arena.forEach(r=>r.fill(0)); // clear board only
-  isGameOver=false;
-  dropCnt=0;
-
+  arena.forEach(r=>r.fill(0));
+  isGameOver=false; dropCnt=0;
   spawn();
   lastTime=performance.now();
   animationId=requestAnimationFrame(update);
 };
-
 document.getElementById('restart').onclick=()=>location.reload();
 
-// ================= INPUT =================
+// ================= KEY INPUT =================
 document.addEventListener('keydown',e=>{
   if(isGameOver||!player) return;
-
-  if(e.key==='ArrowLeft'){player.x--;if(collide(player))player.x++}
-  if(e.key==='ArrowRight'){player.x++;if(collide(player))player.x--}
+  if(e.key==='ArrowLeft'){player.x--;if(collide(player))player.x++;}
+  if(e.key==='ArrowRight'){player.x++;if(collide(player))player.x--;}
   if(e.key==='ArrowDown') drop();
-  if(e.key==='z'||e.key==='ArrowUp'){
-    const m=rotate(player.m);
-    const o=player.m;
-    player.m=m;
-    if(collide(player)) player.m=o;
+  if(e.key==='c'||e.key==='C') doHold();
+  if(e.key==='z'||e.key==='ArrowUp'){const m=rotate(player.m);const o=player.m;player.m=m;if(collide(player))player.m=o;}
+});
+
+// ================= TOUCH CONTROLS =================
+document.getElementById('left-btn').addEventListener('click',()=>{player.x--;if(collide(player))player.x++;});
+document.getElementById('right-btn').addEventListener('click',()=>{player.x++;if(collide(player))player.x--;});
+document.getElementById('rotate-btn').addEventListener('click',()=>{const m=rotate(player.m);const o=player.m;player.m=m;if(collide(player))player.m=o;});
+document.getElementById('down-btn').addEventListener('click',drop);
+document.getElementById('hold-btn').addEventListener('click',doHold);
+
+let touchStartX=0, touchStartY=0;
+canvas.addEventListener('touchstart', e=>{const t=e.touches[0]; touchStartX=t.clientX; touchStartY=t.clientY;});
+canvas.addEventListener('touchend', e=>{
+  const t=e.changedTouches[0];
+  const dx=t.clientX-touchStartX, dy=t.clientY-touchStartY;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>20) player.x++; else if(dx<-20) player.x--;
+    if(collide(player)) player.x-=dx>0?1:-1;
+  }else{
+    if(dy>20) drop(); else if(dy<-20){const m=rotate(player.m);const o=player.m;player.m=m;if(collide(player))player.m=o;}
   }
 });
 
 // ================= START =================
-spawn();
-lastTime=performance.now();
-animationId=requestAnimationFrame(update);
+spawn(); lastTime=performance.now(); animationId=requestAnimationFrame(update);
 </script>
 </body>
 </html>
